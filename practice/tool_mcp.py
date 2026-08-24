@@ -33,6 +33,7 @@ async def run_mcp_demo() -> None:
                 [
                     {
                         "name": tool.name,
+                        "description": tool.description,
                         "input_schema": tool.input_schema,
                     }
                     for tool in tools

@@ -8,7 +8,7 @@ The foundational exercises answer one question:
 
 > **After a user asks a question, how does the Model select a Skill and Tool, and how does the Agent Runtime load, execute, and loop over those decisions?**
 
-The foundation still requires edits to only **three files**, takes about 30 minutes, and needs no API key. The advanced exercise shows how an editor and GitHub Copilot can load the same kind of Agent directly; that part requires signing in to GitHub Copilot.
+The foundation still requires edits to only **three files**, takes about 30 minutes, and needs no API key. The advanced exercise shows how an editor and GitHub Copilot can load the same kind of Agent directly; that part requires signing in to GitHub Copilot and installing Copilot CLI for the plugin workflow.
 
 | Exercise | Goal | Hands-on work |
 |---|---|---|
@@ -163,8 +163,9 @@ The output should contain:
 
 ```text
 "name": "query_weather"
+"description": "Return the weather for a city."
 "city"
-MCP 返回： {"result":"上海：晴，25°C"}
+MCP 返回： {"result": "上海：晴，25°C"}
 ```
 
 **Observe:**
@@ -240,7 +241,7 @@ Complete five code sections.
 Find `TODO 4A` and replace:
 
 ```python
-reply = None
+reply: dict = {}
 ```
 
 with:
@@ -256,7 +257,7 @@ The first request contains only the user question and Skill metadata. It has not
 Find `TODO 4B` and replace:
 
 ```python
-skill = None
+skill = ""
 ```
 
 with:
@@ -441,6 +442,19 @@ plugins\weather-assistant\
 | `com.github.copilot\agents\...agent.md` | Provides a custom Agent that can be selected or delegated to |
 
 Agent Plugins 1.0 discovers components from fixed locations: portable Skills belong under `skills\`, MCP configuration belongs in root `mcp.json`, and Copilot-specific Agents belong under `com.github.copilot\agents\`. Do not mix legacy CLI manifest fields such as top-level `agents`, `skills`, or `mcpServers` paths into this `plugin.json`.
+
+Install [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli) before running the plugin commands. On Windows, Copilot CLI requires PowerShell 6 or later:
+
+```powershell
+winget install --id Microsoft.PowerShell --source winget
+winget install GitHub.Copilot
+```
+
+Open PowerShell 7 with `pwsh`, then verify:
+
+```powershell
+copilot --version
+```
 
 Install the Python dependency first and make sure `python` in the Copilot environment resolves to that virtual environment:
 

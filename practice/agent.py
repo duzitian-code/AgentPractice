@@ -97,7 +97,7 @@ async def demo_model(
 
     question = next(
         message["content"]
-        for message in messages
+        for message in reversed(messages)
         if message["role"] == "user"
     )
     matching_skill = next(
@@ -138,14 +138,14 @@ async def run_agent(question: str) -> str:
     """Run the Model decision -> Runtime action -> observation loop."""
     skill_path = Path(__file__).parent / "SKILL.md"
     available_skills = [read_skill_metadata(skill_path)]
-    messages = [{"role": "user", "content": question}]
+    messages: list[dict] = [{"role": "user", "content": question}]
     model_tools: list[dict] = []
 
     async with Client(mcp, raise_exceptions=True) as client:
         for _ in range(5):
             # TODO 4A: call the Model with messages, Skill metadata, and loaded Tools.
-            reply = None
-            if reply is None:
+            reply: dict = {}
+            if not reply:
                 raise NotImplementedError("请完成 TODO 4A")
 
             print("\n[Model 返回]")
@@ -154,12 +154,13 @@ async def run_agent(question: str) -> str:
             if "content" in reply:
                 return str(reply["content"])
 
-            if "load_skill" in reply:
-                skill_name = reply["load_skill"]["name"]
+            load_skill_request = reply.get("load_skill")
+            if load_skill_request:
+                skill_name = load_skill_request["name"]
 
                 # TODO 4B: load the selected Skill and add it as a system message.
-                skill = None
-                if skill is None:
+                skill = ""
+                if not skill:
                     raise NotImplementedError("请完成 TODO 4B")
                 messages.insert(
                     0,
@@ -172,8 +173,9 @@ async def run_agent(question: str) -> str:
                 print(f"\n[Agent Runtime] 已加载 Skill：{skill_name}")
                 continue
 
-            if "tool_search" in reply:
-                query = reply["tool_search"]["query"]
+            tool_search_request = reply.get("tool_search")
+            if tool_search_request:
+                query = tool_search_request["query"]
 
                 # TODO 4C: discover matching Tools through MCP on demand.
                 model_tools = []
@@ -185,7 +187,9 @@ async def run_agent(question: str) -> str:
                 )
                 continue
 
-            call = reply["tool_call"]
+            call = reply.get("tool_call")
+            if call is None:
+                raise RuntimeError(f"Model 返回了未知响应：{reply}")
             messages.append({"role": "assistant", "tool_call": call})
 
             # TODO 4D: execute the Model-requested Tool through the MCP Client.

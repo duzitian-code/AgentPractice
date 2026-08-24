@@ -8,7 +8,7 @@
 
 > **用户提出问题后，Model 如何选择 Skill 和 Tool，Agent Runtime 又如何加载、执行并形成循环？**
 
-基础部分仍然只改 **3 个文件**，按顺序完成约 30 分钟，不需要 API Key。进阶部分演示如何让编辑器和 GitHub Copilot 直接加载同类 Agent；这部分需要登录 GitHub Copilot。
+基础部分仍然只改 **3 个文件**，按顺序完成约 30 分钟，不需要 API Key。进阶部分演示如何让编辑器和 GitHub Copilot 直接加载同类 Agent；这部分需要登录 GitHub Copilot，插件流程还需要安装 Copilot CLI。
 
 | 练习 | 目的 | 实际操作 |
 |---|---|---|
@@ -163,8 +163,9 @@ def query_weather(city: str) -> str:
 
 ```text
 "name": "query_weather"
+"description": "Return the weather for a city."
 "city"
-MCP 返回： {"result":"上海：晴，25°C"}
+MCP 返回： {"result": "上海：晴，25°C"}
 ```
 
 **观察：**
@@ -238,7 +239,7 @@ load_skill → tool_search → tool_call → 最终文本
 找到 `TODO 4A`，把：
 
 ```python
-reply = None
+reply: dict = {}
 ```
 
 改为：
@@ -254,7 +255,7 @@ reply = await demo_model(messages, available_skills, model_tools)
 找到 `TODO 4B`，把：
 
 ```python
-skill = None
+skill = ""
 ```
 
 改为：
@@ -441,6 +442,19 @@ plugins\weather-assistant\
 | `com.github.copilot\agents\...agent.md` | 提供可选择或自动委派的自定义 Agent |
 
 Agent Plugins 1.0 使用固定目录发现组件：可移植的 Skill 放在 `skills\`，MCP 配置放在根目录 `mcp.json`，Copilot 专用 Agent 放在 `com.github.copilot\agents\`。不要把旧版 CLI 插件中的顶层 `agents`、`skills`、`mcpServers` 路径字段混入这个 `plugin.json`。
+
+运行插件命令前，先安装 [GitHub Copilot CLI](https://docs.github.com/zh/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)。Windows 上的 Copilot CLI 要求 PowerShell 6 或更高版本：
+
+```powershell
+winget install --id Microsoft.PowerShell --source winget
+winget install GitHub.Copilot
+```
+
+使用 `pwsh` 打开 PowerShell 7，然后确认：
+
+```powershell
+copilot --version
+```
 
 安装前先安装依赖，并确保执行 Copilot 的环境中，`python` 指向该虚拟环境：
 
