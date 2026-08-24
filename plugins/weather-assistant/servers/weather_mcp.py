@@ -16,7 +16,7 @@ def get_weather(city: str) -> str:
 
 @mcp.tool()
 def query_weather(city: str) -> str:
-    """查询指定城市的教学示例天气。"""
+    """Return deterministic tutorial weather for a city."""
     return get_weather(city)
 
 

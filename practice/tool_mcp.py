@@ -8,23 +8,23 @@ from mcp import Client
 from mcp.server import MCPServer
 
 
-# 练习 1：先写一个普通 Tool。
+# Exercise 1: start with a regular Tool function.
 def get_weather(city: str) -> str:
-    # TODO 1：删除下一行，返回“城市：晴，25°C”。
+    # TODO 1: replace the next line with the sample weather result.
     raise NotImplementedError("请完成练习 1")
 
 
 mcp = MCPServer("weather-server")
 
 
-# TODO 2：在 query_weather 上方添加 @mcp.tool()。
+# TODO 2: add @mcp.tool() above query_weather.
 def query_weather(city: str) -> str:
-    """查询指定城市的天气。"""
+    """Return the weather for a city."""
     return get_weather(city)
 
 
 async def run_mcp_demo() -> None:
-    """用 MCP Client 发现并调用 MCP Server 中的 Tool。"""
+    """Use an MCP Client to discover and call a Tool on the MCP Server."""
     async with Client(mcp, raise_exceptions=True) as client:
         tools = (await client.list_tools()).tools
         print(

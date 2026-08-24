@@ -10,7 +10,7 @@ from tool_mcp import mcp
 
 
 def read_skill_metadata(path: Path) -> dict[str, str]:
-    """首次发现时只读取 Skill frontmatter。"""
+    """Read only the Skill frontmatter during initial discovery."""
     metadata: dict[str, str] = {}
 
     with path.open(encoding="utf-8") as skill_file:
@@ -39,7 +39,7 @@ def read_skill_metadata(path: Path) -> dict[str, str]:
 
 
 def load_skill(path: Path, expected_name: str) -> str:
-    """只在 Model 选中后加载完整 Skill。"""
+    """Load the complete Skill only after the Model selects it."""
     metadata = read_skill_metadata(path)
     if metadata["name"] != expected_name:
         raise RuntimeError(f"未找到 Skill：{expected_name}")
@@ -51,7 +51,7 @@ def load_skill(path: Path, expected_name: str) -> str:
 
 
 async def search_mcp_tools(client: Client, query: str) -> list[dict]:
-    """按需发现 MCP Tools，并返回匹配的 Model Schema。"""
+    """Discover MCP Tools on demand and return matching Model Schemas."""
     normalized_query = query.strip().casefold()
     if not normalized_query:
         raise ValueError("Tool 搜索词不能为空")
@@ -81,7 +81,7 @@ async def demo_model(
     available_skills: list[dict[str, str]],
     tools: list[dict],
 ) -> dict:
-    """模拟 Model 选择 Skill 加载、Tool 搜索和 Tool Call。"""
+    """Simulate Model choices for Skill loading, Tool search, and Tool Calls."""
     print("\n[Model 收到]")
     print(
         json.dumps(
@@ -135,7 +135,7 @@ async def demo_model(
 
 
 async def run_agent(question: str) -> str:
-    """运行“Model 决策 → Runtime 动作 → 新观察”循环。"""
+    """Run the Model decision -> Runtime action -> observation loop."""
     skill_path = Path(__file__).parent / "SKILL.md"
     available_skills = [read_skill_metadata(skill_path)]
     messages = [{"role": "user", "content": question}]
@@ -143,7 +143,7 @@ async def run_agent(question: str) -> str:
 
     async with Client(mcp, raise_exceptions=True) as client:
         for _ in range(5):
-            # TODO 4A：调用 Model，传入消息、Skill 元数据和当前已加载的 Tools。
+            # TODO 4A: call the Model with messages, Skill metadata, and loaded Tools.
             reply = None
             if reply is None:
                 raise NotImplementedError("请完成 TODO 4A")
@@ -157,7 +157,7 @@ async def run_agent(question: str) -> str:
             if "load_skill" in reply:
                 skill_name = reply["load_skill"]["name"]
 
-                # TODO 4B：按 Model 选择读取完整 Skill，并作为 system 消息加入上下文。
+                # TODO 4B: load the selected Skill and add it as a system message.
                 skill = None
                 if skill is None:
                     raise NotImplementedError("请完成 TODO 4B")
@@ -175,7 +175,7 @@ async def run_agent(question: str) -> str:
             if "tool_search" in reply:
                 query = reply["tool_search"]["query"]
 
-                # TODO 4C：按 Model 的搜索词，通过 MCP 按需发现 Tool。
+                # TODO 4C: discover matching Tools through MCP on demand.
                 model_tools = []
                 if not model_tools:
                     raise NotImplementedError("请完成 TODO 4C")
@@ -188,12 +188,12 @@ async def run_agent(question: str) -> str:
             call = reply["tool_call"]
             messages.append({"role": "assistant", "tool_call": call})
 
-            # TODO 4D：通过 MCP Client 执行 Model 请求的 Tool。
+            # TODO 4D: execute the Model-requested Tool through the MCP Client.
             result = None
             if result is None:
                 raise NotImplementedError("请完成 TODO 4D")
 
-            # TODO 4E：把 Tool 结果作为 role="tool" 的观察消息加入上下文。
+            # TODO 4E: append the Tool result as a role="tool" observation.
             raise NotImplementedError("请完成 TODO 4E")
 
     raise RuntimeError("Agent 超过最大循环次数")
