@@ -1,6 +1,8 @@
-# Minimal Agent Practice
+# Agent Engineering Lab
 
 **English** | [简体中文](README.zh-CN.md)
+
+A hands-on lab for understanding and building the real Model–Runtime–Skill–MCP–Tool loop.
 
 The foundational exercises answer one question:
 
@@ -33,7 +35,7 @@ sequenceDiagram
     R->>S: Read only each Skill's name and description
     S-->>R: Return the lightweight Skill metadata catalog
     R->>M: User question + Skill metadata + Runtime capabilities
-    Note over R,M: The Model makes semantic choices; the Runtime loads and executes
+    Note over R,M: The Model makes semantic choices while the Runtime loads and executes
     M-->>R: load_skill("weather-assistant")
 
     R->>S: Read the complete SKILL.md
@@ -48,7 +50,7 @@ sequenceDiagram
     R->>M: messages + query_weather Schema
     M-->>R: tool_call("query_weather", city="Shanghai")
 
-    Note over R,M: The Model requests the call; it does not execute the Tool
+    Note over R,M: The Model requests the call but does not execute the Tool
     R->>C: call_tool("query_weather", city="Shanghai")
     C->>P: Send the Tool name and JSON arguments
     P->>P: Validate arguments and route by name
@@ -443,7 +445,6 @@ Agent Plugins 1.0 discovers components from fixed locations: portable Skills bel
 Install the Python dependency first and make sure `python` in the Copilot environment resolves to that virtual environment:
 
 ```powershell
-Set-Location D:\workspace\AgentPractice
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 

@@ -1,6 +1,8 @@
-# Agent 最小练习
+# Agent Engineering Lab
 
 [English](README.md) | **简体中文**
+
+通过可运行练习理解并开发真实的 Model–Runtime–Skill–MCP–Tool 闭环。
 
 基础练习只回答一个问题：
 
@@ -443,7 +445,6 @@ Agent Plugins 1.0 使用固定目录发现组件：可移植的 Skill 放在 `sk
 安装前先安装依赖，并确保执行 Copilot 的环境中，`python` 指向该虚拟环境：
 
 ```powershell
-Set-Location D:\workspace\AgentPractice
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 
