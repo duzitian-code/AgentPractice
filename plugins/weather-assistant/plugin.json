@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "weather-assistant",
+  "version": "1.0.0",
+  "description": "使用 Agent、Skill 和 Python MCP 工具回答天气问题的教学插件"
+}

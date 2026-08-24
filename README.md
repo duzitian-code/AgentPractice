@@ -14,15 +14,57 @@
 | 4. Agent | 串起 Model 和 Tool | 补 3 处代码 |
 | 5. 编辑器与插件 | 让 Copilot 直接加载 Agent | 配置项目 Agent，并安装示例插件 |
 
-```text
-Skill --提供做事规则--> Agent --messages + tools--> Model
-                         ^            |
-                         |         tool_call
-                         |            v
-                         +---- MCP ----+----> Tool
-                         |
-                         +-- 把 Tool 结果作为 role="tool" 再交给 Model
+### 完整调用流程（从用户开始）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant A as Agent
+    participant S as Skill
+    participant M as Model
+    participant C as MCP Client
+    participant P as MCP Server
+    participant T as Tool
+
+    U->>A: 提出问题：“上海天气怎么样？”
+    A->>S: 根据 name 和 description 查找匹配的 Skill
+    S-->>A: 返回完整做事规则
+    Note over A,S: Skill 只提供说明，不执行天气查询
+
+    A->>C: list_tools()
+    C->>P: 请求可用 Tool
+    P-->>C: query_weather 的名称、描述和参数 Schema
+    C-->>A: 返回 Tool 定义
+
+    A->>M: system(Skill) + user(问题) + tools
+    M-->>A: 最终文本 或 tool_call
+
+    alt Model 不需要 Tool
+        A-->>U: 直接返回最终答案
+    else Model 返回 tool_call
+        Note over A,M: Model 只提出调用请求，并没有执行 Tool
+        A->>C: call_tool("query_weather", city="上海")
+        C->>P: 发送 Tool 名称和 JSON 参数
+        P->>P: 校验参数并按名称路由
+        P->>T: 调用 query_weather("上海")
+        T-->>P: 返回“上海：晴，25°C”
+        P-->>C: 封装为 MCP Tool Result
+        C-->>A: 返回 Tool 结果
+
+        A->>A: 追加 assistant(tool_call) 和 role="tool"(结果)
+        A->>M: 携带更新后的 messages 再次调用
+        M-->>A: 根据真实 Tool 结果生成最终文本
+        A-->>U: 返回“上海：晴，25°C”
+    end
 ```
+
+按图需要抓住四个边界：
+
+1. **用户只和 Agent 交互**；Agent 负责维护消息和控制循环。
+2. **Skill 是规则**；它告诉 Agent/Model 怎么做，但不执行代码。
+3. **Model 只返回文本或 `tool_call`**；真正执行 Tool 的是 Agent。
+4. **MCP 负责发现、传输和路由**；Tool 才包含实际业务逻辑，结果必须作为 `role="tool"` 再交给 Model。
 
 ## 准备：安装依赖
 
