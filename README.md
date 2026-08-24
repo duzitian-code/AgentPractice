@@ -2,16 +2,16 @@
 
 基础练习只回答一个问题：
 
-> **Model 想调用 Tool 时，Agent、Skill 和 MCP 分别做什么？**
+> **用户提出问题后，Model 如何选择 Skill 和 Tool，Agent Runtime 又如何加载、执行并形成循环？**
 
-基础部分仍然只改 **3 个文件**，按顺序完成约 20 分钟，不需要 API Key。进阶部分演示如何让编辑器和 GitHub Copilot 直接加载同类 Agent；这部分需要登录 GitHub Copilot。
+基础部分仍然只改 **3 个文件**，按顺序完成约 30 分钟，不需要 API Key。进阶部分演示如何让编辑器和 GitHub Copilot 直接加载同类 Agent；这部分需要登录 GitHub Copilot。
 
 | 练习 | 目的 | 实际操作 |
 |---|---|---|
 | 1. Tool | 写出真正执行工作的代码 | 补 1 行 |
 | 2. MCP | 让 Tool 可被发现和调用 | 加 1 个装饰器 |
 | 3. Skill | 写出可复用的做事规则 | 写 8 行 Markdown |
-| 4. Agent | 串起 Model 和 Tool | 补 3 处代码 |
+| 4. Agent Runtime | 执行 Model 选择的动作并维护循环 | 补 5 处代码 |
 | 5. 编辑器与插件 | 让 Copilot 直接加载 Agent | 配置项目 Agent，并安装示例插件 |
 
 ### 完整调用流程（从用户开始）
@@ -20,51 +20,58 @@
 sequenceDiagram
     autonumber
     actor U as 用户
-    participant A as Agent
-    participant S as Skill
+    participant R as Agent Runtime
     participant M as Model
+    participant S as Skill Registry
     participant C as MCP Client
     participant P as MCP Server
     participant T as Tool
 
-    U->>A: 提出问题：“上海天气怎么样？”
-    A->>S: 根据 name 和 description 查找匹配的 Skill
-    S-->>A: 返回完整做事规则
-    Note over A,S: Skill 只提供说明，不执行天气查询
+    U->>R: 提出问题：“上海天气怎么样？”
+    R->>S: 只读取各 Skill 的 name 和 description
+    S-->>R: 返回轻量 Skill 元数据目录
+    R->>M: 用户问题 + Skill 元数据 + Runtime 能力
+    Note over R,M: Model 负责语义判断；Runtime 负责加载和执行
+    M-->>R: load_skill("weather-assistant")
 
-    A->>C: list_tools()
+    R->>S: 读取完整 SKILL.md
+    S-->>R: 返回天气任务的完整规则
+    R->>M: system(完整 Skill) + user(问题)
+    M-->>R: tool_search("weather")
+
+    R->>C: list_tools()
     C->>P: 请求可用 Tool
     P-->>C: query_weather 的名称、描述和参数 Schema
-    C-->>A: 返回 Tool 定义
+    C-->>R: 返回匹配的 Tool 定义
+    R->>M: messages + query_weather Schema
+    M-->>R: tool_call("query_weather", city="上海")
 
-    A->>M: system(Skill) + user(问题) + tools
-    M-->>A: 最终文本 或 tool_call
+    Note over R,M: Model 只提出调用请求，并没有执行 Tool
+    R->>C: call_tool("query_weather", city="上海")
+    C->>P: 发送 Tool 名称和 JSON 参数
+    P->>P: 校验参数并按名称路由
+    P->>T: 调用 query_weather("上海")
+    T-->>P: 返回“上海：晴，25°C”
+    P-->>C: 封装为 MCP Tool Result
+    C-->>R: 返回 Tool 结果
 
-    alt Model 不需要 Tool
-        A-->>U: 直接返回最终答案
-    else Model 返回 tool_call
-        Note over A,M: Model 只提出调用请求，并没有执行 Tool
-        A->>C: call_tool("query_weather", city="上海")
-        C->>P: 发送 Tool 名称和 JSON 参数
-        P->>P: 校验参数并按名称路由
-        P->>T: 调用 query_weather("上海")
-        T-->>P: 返回“上海：晴，25°C”
-        P-->>C: 封装为 MCP Tool Result
-        C-->>A: 返回 Tool 结果
-
-        A->>A: 追加 assistant(tool_call) 和 role="tool"(结果)
-        A->>M: 携带更新后的 messages 再次调用
-        M-->>A: 根据真实 Tool 结果生成最终文本
-        A-->>U: 返回“上海：晴，25°C”
-    end
+    R->>R: 追加 assistant(tool_call) 和 role="tool"(结果)
+    R->>M: 携带更新后的 messages 再次调用
+    M-->>R: 根据真实 Tool 结果生成最终文本
+    R-->>U: 返回“上海：晴，25°C”
 ```
 
-按图需要抓住四个边界：
+图中把 **Agent 系统**拆成了 `Agent Runtime + Model`，这是理解真实运行路线的关键。每次调用 Model，它都可以直接返回最终文本，也可以选择下一步动作；图中展开的是需要 Skill 和 Tool 的完整路径。
 
-1. **用户只和 Agent 交互**；Agent 负责维护消息和控制循环。
-2. **Skill 是规则**；它告诉 Agent/Model 怎么做，但不执行代码。
-3. **Model 只返回文本或 `tool_call`**；真正执行 Tool 的是 Agent。
-4. **MCP 负责发现、传输和路由**；Tool 才包含实际业务逻辑，结果必须作为 `role="tool"` 再交给 Model。
+按图需要抓住五个边界：
+
+1. **Model 负责选择**：根据问题和元数据决定加载哪个 Skill、搜索哪个 Tool、是否发出 `tool_call`。
+2. **Agent Runtime 负责执行和约束**：维护消息、加载文件、调用 Model、执行动作、检查权限并控制循环。
+3. **Skill 是规则**：启动时通常只暴露名称和描述，Model 选中后才加载全文。
+4. **MCP 负责发现、传输和路由**：Tool 才包含实际业务逻辑。
+5. **Tool Result 是新的观察**：Runtime 必须把结果作为 `role="tool"` 再交给 Model，而不是自己编写最终答案。
+
+不同 Agent 产品的具体实现会有差异：工具较少时可能一次性把全部 Schema 交给 Model，也可能先由客户端做候选过滤。本练习把 `load_skill` 和 `tool_search` 显式打印出来，是为了让通常隐藏在 Copilot 内部的 Runtime 动作可以被观察。
 
 ## 准备：安装依赖
 
@@ -171,7 +178,7 @@ MCP 返回： {"result":"上海：晴，25°C"}
 
 ## 练习 3：写一个 Skill
 
-**目的：** 理解 Skill 是给 Agent/Model 使用的可复用文字规则，不是可执行代码。
+**目的：** 理解 Skill 是给 Model 使用的可复用文字规则，不是可执行代码；`name` 和 `description` 用于发现，正文在选中后才加载。
 
 **文件：** `practice\SKILL.md`
 
@@ -202,19 +209,27 @@ Get-Content practice\SKILL.md
 
 **完成后必须理解：**
 
-> Skill 只告诉 Agent“怎么做”；真正查询天气的仍然是 Tool。
+> Runtime 启动时只需要读取 Skill 元数据；Model 根据 `description` 选中 Skill 后，Runtime 才加载完整正文。这就是 Skill 的前两层渐进式披露。
 
 ---
 
-## 练习 4：写 Agent 循环
+## 练习 4：写真实的 Agent Runtime 循环
 
-**目的：** 理解 Agent 是协调者：调用 Model、执行 Model 请求的 Tool、再把结果交回 Model。
+**目的：** 理解最核心的 Agent 循环：**Model 选择下一步动作 → Runtime 执行动作 → 把观察结果交回 Model**。
 
 **文件：** `practice\agent.py`
 
-只补三处代码。
+`demo_model` 是固定行为的 Model 替身，会依次选择：
 
-### 操作 4.1：Agent 调用 Model
+```text
+load_skill → tool_search → tool_call → 最终文本
+```
+
+真实客户端可能把前两个动作实现为内置 Tool 或内部协议；本练习故意将它们显式返回，便于观察 Runtime 与 Model 的边界。
+
+共补五处代码。
+
+### 操作 4.1：把当前上下文交给 Model
 
 找到 `TODO 4A`，把：
 
@@ -225,12 +240,46 @@ reply = None
 改为：
 
 ```python
-reply = await demo_model(messages, model_tools)
+reply = await demo_model(messages, available_skills, model_tools)
 ```
 
-### 操作 4.2：Agent 执行 Tool
+此时第一次请求只包含用户问题和 Skill 元数据，还没有读取完整 Skill，也没有加载业务 Tool。
+
+### 操作 4.2：按 Model 选择加载完整 Skill
 
 找到 `TODO 4B`，把：
+
+```python
+skill = None
+```
+
+改为：
+
+```python
+skill = load_skill(skill_path, skill_name)
+```
+
+Runtime 只负责执行 `load_skill`；决定加载哪个 Skill 的是 Model。
+
+### 操作 4.3：按 Model 搜索词发现 MCP Tool
+
+找到 `TODO 4C`，把：
+
+```python
+model_tools = []
+```
+
+改为：
+
+```python
+model_tools = await search_mcp_tools(client, query)
+```
+
+只有到这一步，`query_weather` 的完整参数 Schema 才进入 Model 上下文。
+
+### 操作 4.4：执行 Model 发出的 Tool Call
+
+找到 `TODO 4D`，把：
 
 ```python
 result = None
@@ -242,9 +291,9 @@ result = None
 result = await client.call_tool(call["name"], call["arguments"])
 ```
 
-### 操作 4.3：Agent 把 Tool 结果交回 Model
+### 操作 4.5：把 Tool Result 作为观察交回 Model
 
-删除 `TODO 4C` 下方的 `raise NotImplementedError(...)`，改成：
+删除 `TODO 4E` 下方的 `raise NotImplementedError(...)`，改成：
 
 ```python
 messages.append(
@@ -268,11 +317,13 @@ messages.append(
 **预期过程：**
 
 ```text
-第 1 次 Model 输入：system(Skill) + user(问题) + MCP tools
-第 1 次 Model 输出：tool_call(query_weather)
-Agent：通过 MCP 执行 query_weather
-第 2 次 Model 输入：增加 assistant(tool_call) + tool(结果)
-第 2 次 Model 输出：最终文本
+第 1 次 Model 输入：user(问题) + Skill 元数据；输出 load_skill
+Agent Runtime：读取完整 SKILL.md
+第 2 次 Model 输入：system(完整 Skill) + user(问题)；输出 tool_search
+Agent Runtime：通过 MCP list_tools 按需发现 query_weather
+第 3 次 Model 输入：messages + query_weather Schema；输出 tool_call
+Agent Runtime：通过 MCP call_tool 执行 query_weather
+第 4 次 Model 输入：增加 assistant(tool_call) + tool(结果)；输出最终文本
 ```
 
 最后应看到：
@@ -284,7 +335,19 @@ Model 根据 Tool 结果回答：上海：晴，25°C
 
 **完成后必须理解：**
 
-> Model 只返回 `tool_call`；Agent 才真正执行 Tool，并把结果以 `role="tool"` 再次发送给 Model。
+> Model 负责语义判断和选择下一步动作；Agent Runtime 不替代这种语义判断，而是负责加载、发现、执行、权限约束、记录观察并继续循环。
+
+### 真实 Agent 的最小开发结构
+
+| 模块 | 本练习 | 接入真实系统时替换什么 |
+|---|---|---|
+| Skill Registry | `read_skill_metadata`、`load_skill` | 扫描项目、用户或插件中的 Skills |
+| Model Adapter | `demo_model` | 调用真实模型 API，并把响应统一成 Runtime 可处理的动作 |
+| Tool Registry | `search_mcp_tools` | 聚合 MCP、本地函数和远程 API 的 Tool Schema |
+| Runtime Loop | `run_agent` | 增加权限确认、超时、重试、最大轮次和取消 |
+| Session State | `messages` | 增加持久化、摘要、上下文裁剪和追踪日志 |
+
+接入真实模型时，核心循环结构不变：让 Model Adapter 接收 `messages + Skill 元数据 + tools`，并把真实模型响应转换为最终文本、Runtime 动作或标准 `tool_call`。
 
 ---
 
@@ -343,7 +406,7 @@ code .
 
 在 JetBrains 中，打开 Copilot Chat，在 Agent 下拉菜单中选择 **Configure Agents... → Workspace**，即可看到 `.github\agents` 中的 Agent。JetBrains 不读取 `.vscode\mcp.json`，需要在其 MCP 设置中另外注册同一个 Python 命令；其 Custom Agents 当前仍可能标记为 Preview。
 
-> 选择 Agent 不等于执行 Tool。Agent 先把可用工具交给 Model，Model 再产生 `tool_call`，最后由 Copilot 执行 MCP Tool。
+> 选择 Agent 不等于执行 Tool。Copilot Runtime 向 Model 提供 Skill 元数据和 Tool 能力，Model 选择下一步动作；Runtime 再加载 Skill、发现 Tool 或执行 MCP Tool。
 
 ### 5.2 把 Agent 打成 Copilot Plugin
 
@@ -440,16 +503,17 @@ Agent 的调用方式可用两个字段控制：
 
 ---
 
-## 最后用七句话复述
+## 最后用八句话复述
 
 完成练习后，请不看代码回答：
 
-1. **Tool**：执行确定任务的函数。
-2. **MCP**：让 Tool 可以被统一发现和调用的协议。
-3. **Skill**：告诉 Agent/Model 如何完成某类任务的文字规则。
-4. **Agent**：维护消息和循环，连接 Skill、Model 与 Tool。
-5. **显式调用**：用户明确指定要使用哪个 Agent、Skill 或 Tool。
-6. **隐式调用**：Model 根据描述和上下文自行选择能力。
-7. **渐进式披露**：先加载少量元数据，命中后再按需加载完整说明和资源。
+1. **Model**：根据当前上下文选择最终回答、Runtime 动作或 `tool_call`。
+2. **Agent Runtime**：维护消息和循环，执行 Model 选择的动作。
+3. **Skill**：告诉 Model 如何完成某类任务，本身不是可执行代码。
+4. **Tool**：执行确定任务的函数。
+5. **MCP**：让 Runtime 可以统一发现和调用 Tool 的协议。
+6. **显式调用**：用户明确指定要使用哪个 Agent、Skill 或 Tool。
+7. **隐式调用**：Model 根据描述和上下文自行选择能力。
+8. **渐进式披露**：先加载少量元数据，命中后再按需加载完整说明和资源。
 
-`practice\agent.py` 中的 `demo_model` 是一个固定行为的模型替身，因此无需 API Key。换成真实模型时，只替换 `demo_model`，Agent 循环、Skill、MCP 和 Tool 的关系不变。
+`practice\agent.py` 中的 `demo_model` 是固定行为的模型替身，因此无需 API Key。它将通常隐藏的 `load_skill` 和 `tool_search` 决策显式打印出来；换成真实 Model Adapter 后，Runtime 循环、渐进式披露、MCP 和 Tool Result 回传关系保持不变。
